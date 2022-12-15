@@ -37,6 +37,27 @@ func main() {
 		return
 	}
 
+	// Make a GET request to the /dcim/device-roles/ endpoint of the Netbox API
+	resp, err = http.Get(netboxAPI + "/dcim/device-roles/")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Decode the response into a response object
+	var roles response
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Create a map from device role ID to device role name
+	roleNames := make(map[int]string)
+	for _, role := range roles.Results {
+		roleNames[role.ID] = role.Name
+	}
+
 	// Group the devices by device role
 	deviceRoles := make(map[int][]Device) // Map from device role ID to slice of devices
 	for _, device := range r.Results {
@@ -46,9 +67,10 @@ func main() {
 	// Print the devices grouped by device role
 	fmt.Println("Devices grouped by device role:")
 	for roleID, devices := range deviceRoles {
-		fmt.Printf("- Device role %d:\n", roleID)
+		fmt.Printf("- Device role %s:\n", roleNames[roleID])
 		for _, device := range devices {
 			fmt.Printf("  - %d: %s\n", device.ID, device.Name)
 		}
 	}
+
 }
