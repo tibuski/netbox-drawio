@@ -1,76 +1,73 @@
 package main
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"net/http"
 )
 
-const netboxAPI = "http://localhost:9000/api" // Replace with the URL of your Netbox instance
-
-// Device represents a device in Netbox
-type Device struct {
-	ID         int    `json:"id"`
-	Name       string `json:"name"`
-	DeviceRole struct {
-		ID int `json:"id"`
-	} `json:"device_role"`
-}
-
-type response struct {
-	Results []Device `json:"results"`
-}
+const (
+	NETBOX_URL      = "https://demo.netbox.dev/api"
+	NETBOX_USER     = "admin"
+	NETBOX_PASSWORD = "admin"
+)
 
 func main() {
-	// Make a GET request to the /dcim/devices/ endpoint of the Netbox API
-	resp, err := http.Get(netboxAPI + "/dcim/devices/")
+
+	// Create a token
+	token := CreateToken()
+
+	// Get devices
+	GetDevices(token)
+
+}
+
+func CreateToken() string {
+
+	var jsonData = []byte(`{
+		"username": "admin",
+		"password": "admin"
+	}`)
+
+	// Create a new token in netbox
+	// Create a new request to create a token
+	request, err := http.NewRequest("POST", NETBOX_URL+"/users/tokens/provision/", bytes.NewBuffer(jsonData))
 	if err != nil {
 		fmt.Println(err)
-		return
 	}
-	defer resp.Body.Close()
+	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 
-	// Decode the response into a response object
-	var r response
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// Make a GET request to the /dcim/device-roles/ endpoint of the Netbox API
-	resp, err = http.Get(netboxAPI + "/dcim/device-roles/")
+	// Send request
+	client := &http.Client{}
+	resp, err := client.Do(request)
 	if err != nil {
 		fmt.Println(err)
-		return
 	}
 	defer resp.Body.Close()
+	fmt.Println(resp.Status)
 
-	// Decode the response into a response object
-	var roles response
-	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+	// get key from response body and put it in token variable
+
+	return token
+
+}
+
+func GetDevices(token string) {
+
+	// New GET request with Authorization header and token
+	req, err := http.NewRequest("GET", NETBOX_URL+"/dcim/devices/", nil)
+	if err != nil {
 		fmt.Println(err)
-		return
 	}
+	req.Header.Add("Authorization", "Token "+token)
 
-	// Create a map from device role ID to device role name
-	roleNames := make(map[int]string)
-	for _, role := range roles.Results {
-		roleNames[role.ID] = role.Name
+	// Send request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
 	}
-
-	// Group the devices by device role
-	deviceRoles := make(map[int][]Device) // Map from device role ID to slice of devices
-	for _, device := range r.Results {
-		deviceRoles[device.DeviceRole.ID] = append(deviceRoles[device.DeviceRole.ID], device)
-	}
-
-	// Print the devices grouped by device role
-	fmt.Println("Devices grouped by device role:")
-	for roleID, devices := range deviceRoles {
-		fmt.Printf("- Device role %s:\n", roleNames[roleID])
-		for _, device := range devices {
-			fmt.Printf("  - %d: %s\n", device.ID, device.Name)
-		}
-	}
+	defer resp.Body.Close()
+	println(resp.Status)
 
 }
